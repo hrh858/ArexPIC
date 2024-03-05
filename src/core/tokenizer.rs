@@ -1,5 +1,8 @@
 use std::{error::Error, fmt::Display, iter::Peekable, str::Chars};
 
+use super::parser::OperationPrecedence;
+
+#[derive(Debug)]
 pub struct Tokenizer<'a> {
     expression: Peekable<Chars<'a>>,
 }
@@ -62,7 +65,7 @@ impl<'a> Iterator for Tokenizer<'a> {
                 }
             }
         } else {
-            None
+            Some(Ok(Token::End))
         }
     }
 }
@@ -94,7 +97,7 @@ impl Display for TokenizerError {
 
 impl Error for TokenizerError {}
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Token {
     Add,              // The `+` symbol
     Subtract,         // The `-` symbol
@@ -104,13 +107,25 @@ pub enum Token {
     OpenParenthesis,  // The `(` symbol
     CloseParenthesis, // The `)` symbol
     Number(f64),      // Any number, eg: 3.141 or 42
+    End
+}
+
+impl Token {
+    pub fn get_operation_precedence(&self)  -> OperationPrecedence {
+        match *self {
+            Self::Add | Self:: Subtract => OperationPrecedence::AddSubtract,
+            Self::Multiply | Self::Divide => OperationPrecedence::MultiplyDivision,
+            Self::Power => OperationPrecedence::Power,
+            _ => OperationPrecedence::DefaultZero,
+        }
+    }
 }
 
 #[test]
 fn test_tokenizer_happy_path() {
     let input: &str = "3.23 + 10.0993 - ((3*2)/24) ^ 2"; // This input should cover all the
                                                          // cases... I hope!
-    let expected_output: [Token; 15] = [
+    let expected_output: [Token; 16] = [
         Token::Number(3.23),
         Token::Add,
         Token::Number(10.0993),
@@ -126,6 +141,7 @@ fn test_tokenizer_happy_path() {
         Token::CloseParenthesis,
         Token::Power,
         Token::Number(2.0),
+        Token::End,
     ];
     let mut t = Tokenizer::new(input).enumerate();
     while let Some((idx, Ok(token))) = t.next() {
